@@ -1,43 +1,32 @@
 package com.mshri;
 
 import com.microsoft.azure.functions.ExecutionContext;
-import com.microsoft.azure.functions.HttpMethod;
-import com.microsoft.azure.functions.HttpRequestMessage;
-import com.microsoft.azure.functions.HttpResponseMessage;
-import com.microsoft.azure.functions.HttpStatus;
-import com.microsoft.azure.functions.annotation.AuthorizationLevel;
+import com.microsoft.azure.functions.OutputBinding;
+import com.microsoft.azure.functions.annotation.BindingName;
+import com.microsoft.azure.functions.annotation.BlobOutput;
+import com.microsoft.azure.functions.annotation.BlobTrigger;
 import com.microsoft.azure.functions.annotation.FunctionName;
-import com.microsoft.azure.functions.annotation.HttpTrigger;
-
-import java.util.Optional;
+import com.microsoft.azure.functions.annotation.StorageAccount;
 
 /**
- * Azure Functions with HTTP Trigger.
+ * A Blob trigger function for file processing
  */
 public class Function {
     /**
-     * This function listens at endpoint "/api/HttpExample". Two ways to invoke it using "curl" command in bash:
-     * 1. curl -d "HTTP Body" {your host}/api/HttpExample
-     * 2. curl "{your host}/api/HttpExample?name=HTTP%20Query"
+     * This function triggers when a file is uploaded to a container named
+     * "uploadedfiles" in Azure Blob.
      */
-    @FunctionName("HttpExample")
-    public HttpResponseMessage run(
-            @HttpTrigger(
-                name = "req",
-                methods = {HttpMethod.GET, HttpMethod.POST},
-                authLevel = AuthorizationLevel.ANONYMOUS)
-                HttpRequestMessage<Optional<String>> request,
+    @FunctionName("BlobProcessorJava")
+    @StorageAccount("AzureWebJobsStorage")
+    public void run(
+            @BlobTrigger(name = "file", dataType = "binary", path = "uploadedfiles/{blobname}") byte[] inputContent,
+            @BindingName("blobname") String fileName,
+            @BlobOutput(name = "target", path = "processedfiles/processed-{blobname}") OutputBinding<String> outputItem,
             final ExecutionContext context) {
-        context.getLogger().info("Java HTTP trigger processed a request.");
+        String inputText = new String(inputContent);
+        String processedText = MyFileProcessor.sortAndSerialize(inputText, 4, 4);
+        outputItem.setValue(processedText);
 
-        // Parse query parameter
-        final String query = request.getQueryParameters().get("name");
-        final String name = request.getBody().orElse(query);
-
-        if (name == null) {
-            return request.createResponseBuilder(HttpStatus.BAD_REQUEST).body("Please pass a name on the query string or in the request body").build();
-        } else {
-            return request.createResponseBuilder(HttpStatus.OK).body("Hello, " + name).build();
-        }
+        context.getLogger().info("Name: " + fileName + ", Size: " + inputContent.length + " bytes");
     }
 }
